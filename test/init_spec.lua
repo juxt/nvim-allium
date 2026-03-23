@@ -478,3 +478,258 @@ harness.test("setup skips keymap registration when disabled", function()
   vim.lsp.config = original_lsp_config
   assert(ok, err)
 end)
+
+harness.test("setup registers all 9 default keymap bindings with correct lhs values", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  local captured_setup_opts
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function(opts)
+          captured_setup_opts = opts
+        end,
+      },
+    }
+  end
+
+  local keymaps = {}
+  local original_keymap_set = vim.keymap.set
+  local original_bo = vim.bo
+  local original_treesitter_setup = require("allium.treesitter").setup
+
+  vim.keymap.set = function(mode, lhs, rhs, opts)
+    keymaps[lhs] = { mode = mode, rhs = rhs, opts = opts }
+  end
+  vim.bo = setmetatable({}, {
+    __index = function()
+      return setmetatable({}, { __newindex = function() end })
+    end,
+  })
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    captured_setup_opts.on_attach({}, 1)
+
+    local expected = { "gd", "K", "gr", "<leader>rn", "<leader>ca", "<leader>f", "[d", "]d", "<leader>q" }
+    for _, lhs in ipairs(expected) do
+      assert(keymaps[lhs], "expected keymap binding for " .. lhs)
+      assert(keymaps[lhs].mode == "n", "expected normal mode for " .. lhs)
+    end
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.keymap.set = original_keymap_set
+  vim.bo = original_bo
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
+harness.test("on_attach callback is invoked when a matching client attaches (native)", function()
+  clear_setup_modules()
+
+  local captured_config_count = 0
+  local original_lsp_config = vim.lsp.config
+  local original_lsp_enable = vim.lsp.enable
+  local original_autocmd = vim.api.nvim_create_autocmd
+  local original_augroup = vim.api.nvim_create_augroup
+
+  vim.lsp.config = function()
+    captured_config_count = captured_config_count + 1
+  end
+  vim.lsp.enable = function() end
+
+  vim.api.nvim_create_augroup = function()
+    return 1
+  end
+
+  local autocmd_callback
+  vim.api.nvim_create_autocmd = function(_, opts)
+    autocmd_callback = opts.callback
+  end
+
+  local keymap_calls = 0
+  local original_keymap_set = vim.keymap.set
+  vim.keymap.set = function()
+    keymap_calls = keymap_calls + 1
+  end
+
+  local original_get_client = vim.lsp.get_client_by_id
+  vim.lsp.get_client_by_id = function()
+    return { name = "allium" }
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    assert(type(autocmd_callback) == "function", "expected LspAttach autocmd callback")
+    autocmd_callback({ buf = 1, data = { client_id = 1 } })
+    assert(keymap_calls == 9, "expected keymaps registered via on_attach callback, got " .. keymap_calls)
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.keymap.set = original_keymap_set
+  vim.lsp.get_client_by_id = original_get_client
+  vim.lsp.config = original_lsp_config
+  vim.lsp.enable = original_lsp_enable
+  vim.api.nvim_create_autocmd = original_autocmd
+  vim.api.nvim_create_augroup = original_augroup
+  assert(ok, err)
+end)
+
+harness.test("setup with empty opts table uses all defaults", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  local captured_setup_opts
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function(opts)
+          captured_setup_opts = opts
+        end,
+      },
+    }
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    local config = require("allium.config")
+    assert(config.options.lsp.cmd[1] == "allium-lsp", "expected default lsp cmd")
+    assert(config.options.lsp.cmd[2] == "--stdio", "expected default lsp cmd arg")
+    assert(config.options.lsp.filetypes[1] == "allium", "expected default filetype")
+    assert(config.options.keymaps.enabled == true, "expected keymaps enabled by default")
+    assert(config.options.keymaps.definition == "gd", "expected default definition keymap")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
+harness.test("setup with nil opts does not error", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function() end,
+      },
+    }
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup(nil)
+
+    local config = require("allium.config")
+    assert(config.options.lsp.cmd[1] == "allium-lsp", "expected defaults when nil passed")
+    assert(config.options.keymaps.enabled == true, "expected keymaps enabled when nil passed")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
+harness.test("lsp.filetypes defaults to allium", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function() end,
+      },
+    }
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    local config = require("allium.config")
+    assert(type(config.options.lsp.filetypes) == "table", "expected filetypes to be a table")
+    assert(#config.options.lsp.filetypes == 1, "expected exactly one default filetype")
+    assert(config.options.lsp.filetypes[1] == "allium", "expected default filetype to be allium")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
+harness.test("lsp.root_markers defaults to allium.config.json and .git", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function() end,
+      },
+    }
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    local config = require("allium.config")
+    assert(type(config.options.lsp.root_markers) == "table", "expected root_markers to be a table")
+    assert(#config.options.lsp.root_markers == 2, "expected exactly two root markers")
+    assert(config.options.lsp.root_markers[1] == "allium.config.json", "expected allium.config.json as first root marker")
+    assert(config.options.lsp.root_markers[2] == ".git", "expected .git as second root marker")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
