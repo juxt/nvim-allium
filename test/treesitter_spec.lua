@@ -22,12 +22,8 @@ harness.test("treesitter.setup registers parser via get_parser_configs API", fun
   assert(type(parser_configs.allium) == "table", "expected allium parser config")
   assert(parser_configs.allium.filetype == "allium", "expected allium filetype mapping")
   assert(
-    parser_configs.allium.install_info.url == "https://github.com/juxt/allium-tools",
+    parser_configs.allium.install_info.url == "https://github.com/juxt/tree-sitter-allium",
     "expected GitHub URL for grammar"
-  )
-  assert(
-    parser_configs.allium.install_info.location == "packages/tree-sitter-allium",
-    "expected monorepo subdirectory location"
   )
 end)
 

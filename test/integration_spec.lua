@@ -226,7 +226,7 @@ run_case("real dependency nvim-treesitter is available", function()
   expect(ok, "nvim-treesitter not available")
 end)
 
-run_case("allium parser config points at allium-tools grammar", function()
+run_case("allium parser config points at tree-sitter-allium grammar", function()
   local parsers = require("nvim-treesitter.parsers")
   local parser_configs
   if type(parsers.get_parser_configs) == "function" then
@@ -239,8 +239,8 @@ run_case("allium parser config points at allium-tools grammar", function()
   expect(type(parser_configs.allium) == "table", "allium parser config missing")
   expect(
     type(parser_configs.allium.install_info) == "table"
-      and parser_configs.allium.install_info.url == "https://github.com/juxt/allium-tools",
-    "allium parser should point at juxt/allium-tools"
+      and parser_configs.allium.install_info.url == "https://github.com/juxt/tree-sitter-allium",
+    "allium parser should point at juxt/tree-sitter-allium"
   )
 end)
 

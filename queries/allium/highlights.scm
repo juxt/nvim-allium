@@ -23,6 +23,16 @@
   "implies"
   "deferred"
   "given"
+  "for"
+  "in"
+  "if"
+  "else"
+  "where"
+  "with"
+  "exists"
+  "when"
+  "transitions"
+  "terminal"
 ] @keyword
 
 (clause_keyword) @keyword
@@ -40,11 +50,15 @@
 (variant_declaration name: (identifier) @type)
 (contract_declaration name: (identifier) @type)
 (invariant_declaration name: (identifier) @type)
+(invariant_block name: (identifier) @type)
 
 ; Variables / Fields
 (field_assignment key: (identifier) @variable)
 (let_binding name: (identifier) @variable)
 (named_argument name: (identifier) @variable)
+(for_block binding: (identifier) @variable)
+(for_expression binding: (identifier) @variable)
+(transition_block field: (identifier) @variable)
 
 ; Functions
 (call_expression
@@ -65,6 +79,7 @@
 (duration_literal) @number
 (boolean_literal) @boolean
 (null_literal) @constant.builtin
+(backtick_literal) @string.special
 
 ; Operators & Punctuation
 [

@@ -6,3 +6,7 @@
 
 (clause
   value: (tuple_expression)) @indent.begin
+
+(transition_block) @indent.begin
+(for_block) @indent.begin
+(if_block) @indent.begin

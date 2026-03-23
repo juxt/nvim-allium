@@ -20,10 +20,9 @@ function M.setup()
   if not configs.allium then
     configs.allium = {
       install_info = {
-        url = "https://github.com/juxt/allium-tools",
+        url = "https://github.com/juxt/tree-sitter-allium",
         files = { "src/parser.c" },
-        location = "packages/tree-sitter-allium",
-        branch = "main",
+        branch = "master",
       },
       filetype = "allium",
     }

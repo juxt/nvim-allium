@@ -99,6 +99,10 @@ Run integration tests (requires `allium-lsp` in PATH and test dependencies insta
 ./scripts/test-integration.sh
 ```
 
+## Compatibility
+
+Allium Tools core 3.x
+
 ## Licence
 
 MIT
