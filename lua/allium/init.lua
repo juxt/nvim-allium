@@ -36,7 +36,9 @@ local function setup_lsp_native()
   })
   vim.lsp.enable("allium")
 
+  local group = vim.api.nvim_create_augroup("allium_lsp_attach", { clear = true })
   vim.api.nvim_create_autocmd("LspAttach", {
+    group = group,
     callback = function(args)
       local client = vim.lsp.get_client_by_id(args.data.client_id)
       if client and client.name == "allium" then
@@ -68,8 +70,8 @@ local function setup_lsp_legacy()
   lspconfig.allium.setup({
     on_attach = function(client, bufnr)
       attach_keymaps(bufnr)
-      vim.api.nvim_buf_set_option(bufnr, "omnifunc", "v:lua.vim.lsp.omnifunc")
-      vim.api.nvim_buf_set_option(bufnr, "formatexpr", "v:lua.vim.lsp.formatexpr()")
+      vim.bo[bufnr].omnifunc = "v:lua.vim.lsp.omnifunc"
+      vim.bo[bufnr].formatexpr = "v:lua.vim.lsp.formatexpr()"
     end,
   })
 end

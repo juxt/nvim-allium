@@ -31,17 +31,25 @@ harness.test("setup registers allium lsp server via lspconfig on Neovim < 0.11",
 
   local keymaps = {}
   local original_keymap_set = vim.keymap.set
-  local original_set_option = vim.api.nvim_buf_set_option
   local original_treesitter_setup = require("allium.treesitter").setup
 
   vim.keymap.set = function(mode, lhs, rhs, opts)
     keymaps[#keymaps + 1] = { mode = mode, lhs = lhs, rhs = rhs, opts = opts }
   end
 
+  -- Mock vim.bo[bufnr] to capture option writes
   local buf_options = {}
-  vim.api.nvim_buf_set_option = function(bufnr, option, value)
-    buf_options[#buf_options + 1] = { bufnr = bufnr, option = option, value = value }
-  end
+  local original_bo = vim.bo
+  local bo_mt = {
+    __index = function(_, bufnr)
+      return setmetatable({}, {
+        __newindex = function(_, option, value)
+          buf_options[#buf_options + 1] = { bufnr = bufnr, option = option, value = value }
+        end,
+      })
+    end,
+  }
+  vim.bo = setmetatable({}, bo_mt)
 
   local treesitter_called = false
   require("allium.treesitter").setup = function()
@@ -77,7 +85,7 @@ harness.test("setup registers allium lsp server via lspconfig on Neovim < 0.11",
 
   require("allium.treesitter").setup = original_treesitter_setup
   vim.keymap.set = original_keymap_set
-  vim.api.nvim_buf_set_option = original_set_option
+  vim.bo = original_bo
   vim.lsp.config = original_lsp_config
   assert(ok, err)
 end)
@@ -90,6 +98,7 @@ harness.test("setup uses native vim.lsp.config on Neovim 0.11+", function()
   local original_lsp_config = vim.lsp.config
   local original_lsp_enable = vim.lsp.enable
   local original_autocmd = vim.api.nvim_create_autocmd
+  local original_augroup = vim.api.nvim_create_augroup
 
   vim.lsp.config = function(name, cfg)
     captured_name = name
@@ -97,6 +106,12 @@ harness.test("setup uses native vim.lsp.config on Neovim 0.11+", function()
   end
   vim.lsp.enable = function(name)
     enabled_servers[#enabled_servers + 1] = name
+  end
+
+  local created_augroups = {}
+  vim.api.nvim_create_augroup = function(name, opts)
+    created_augroups[#created_augroups + 1] = { name = name, opts = opts }
+    return 1
   end
 
   local autocmd_callbacks = {}
@@ -125,13 +140,18 @@ harness.test("setup uses native vim.lsp.config on Neovim 0.11+", function()
     assert(#enabled_servers == 1, "expected vim.lsp.enable called once")
     assert(enabled_servers[1] == "allium", "expected allium enabled")
     assert(treesitter_called, "expected treesitter setup call")
+    assert(#created_augroups >= 1, "expected augroup creation")
+    assert(created_augroups[1].name == "allium_lsp_attach", "expected allium_lsp_attach augroup")
+    assert(created_augroups[1].opts.clear == true, "expected augroup with clear = true")
     assert(#autocmd_callbacks >= 1, "expected LspAttach autocmd")
+    assert(autocmd_callbacks[1].opts.group == 1, "expected autocmd in augroup")
   end)
 
   require("allium.treesitter").setup = original_treesitter_setup
   vim.lsp.config = original_lsp_config
   vim.lsp.enable = original_lsp_enable
   vim.api.nvim_create_autocmd = original_autocmd
+  vim.api.nvim_create_augroup = original_augroup
   assert(ok, err)
 end)
 
@@ -205,14 +225,17 @@ harness.test("setup skips keymap registration when disabled", function()
 
   local keymap_calls = 0
   local original_keymap_set = vim.keymap.set
-  local original_set_option = vim.api.nvim_buf_set_option
+  local original_bo = vim.bo
   local original_treesitter_setup = require("allium.treesitter").setup
 
   vim.keymap.set = function()
     keymap_calls = keymap_calls + 1
   end
-  vim.api.nvim_buf_set_option = function()
-  end
+  vim.bo = setmetatable({}, {
+    __index = function()
+      return setmetatable({}, { __newindex = function() end })
+    end,
+  })
   require("allium.treesitter").setup = function()
   end
 
@@ -227,7 +250,7 @@ harness.test("setup skips keymap registration when disabled", function()
 
   require("allium.treesitter").setup = original_treesitter_setup
   vim.keymap.set = original_keymap_set
-  vim.api.nvim_buf_set_option = original_set_option
+  vim.bo = original_bo
   vim.lsp.config = original_lsp_config
   assert(ok, err)
 end)

@@ -1,47 +1,53 @@
 local M = {}
 
+-- vim.health.ok/error/warn/start were added in 0.10; 0.9 uses report_* variants
+local health_start = vim.health.start or vim.health.report_start
+local health_ok = vim.health.ok or vim.health.report_ok
+local health_warn = vim.health.warn or vim.health.report_warn
+local health_error = vim.health.error or vim.health.report_error
+
 local function check_lsp()
   local config = require("allium.config")
   local lsp_cmd = config.options.lsp and config.options.lsp.cmd and config.options.lsp.cmd[1] or "allium-lsp"
   if vim.fn.executable(lsp_cmd) == 1 then
-    vim.health.ok(string.format("allium-lsp found at %s", vim.fn.exepath(lsp_cmd)))
+    health_ok(string.format("allium-lsp found at %s", vim.fn.exepath(lsp_cmd)))
   else
-    vim.health.error("allium-lsp binary not found", "Ensure allium-lsp is in your PATH or configure lsp.cmd in setup()")
+    health_error("allium-lsp binary not found", "Ensure allium-lsp is in your PATH or configure lsp.cmd in setup()")
   end
 end
 
 local function check_version()
   if vim.fn.has("nvim-0.9") == 1 then
-    vim.health.ok("Neovim version >= 0.9.0")
+    health_ok("Neovim version >= 0.9.0")
   else
-    vim.health.error("Neovim version < 0.9.0", "Upgrade to Neovim 0.9.0 or newer for full Allium support")
+    health_error("Neovim version < 0.9.0", "Upgrade to Neovim 0.9.0 or newer for full Allium support")
     return
   end
 
   if vim.lsp.config then
-    vim.health.ok("Neovim 0.11+ native LSP support detected")
+    health_ok("Neovim 0.11+ native LSP support detected")
   else
-    vim.health.ok("Using lspconfig for LSP support (Neovim < 0.11)")
+    health_ok("Using lspconfig for LSP support (Neovim < 0.11)")
   end
 end
 
 local function check_dependencies()
   if vim.lsp.config then
     if pcall(require, "lspconfig") then
-      vim.health.ok("nvim-lspconfig available (optional on 0.11+)")
+      health_ok("nvim-lspconfig available (optional on 0.11+)")
     else
-      vim.health.ok("nvim-lspconfig not installed (not required on 0.11+)")
+      health_ok("nvim-lspconfig not installed (not required on 0.11+)")
     end
   else
     if pcall(require, "lspconfig") then
-      vim.health.ok("nvim-lspconfig available")
+      health_ok("nvim-lspconfig available")
     else
-      vim.health.error("nvim-lspconfig not found", "Install nvim-lspconfig for LSP support, or upgrade to Neovim 0.11+")
+      health_error("nvim-lspconfig not found", "Install nvim-lspconfig for LSP support, or upgrade to Neovim 0.11+")
     end
   end
 
   if pcall(require, "nvim-treesitter") then
-    vim.health.ok("nvim-treesitter available")
+    health_ok("nvim-treesitter available")
     local ok, parsers = pcall(require, "nvim-treesitter.parsers")
     local has_parser = false
     if ok and type(parsers) == "table" then
@@ -56,17 +62,17 @@ local function check_dependencies()
     end
 
     if has_parser then
-      vim.health.ok("allium tree-sitter parser installed/configured")
+      health_ok("allium tree-sitter parser installed/configured")
     else
-      vim.health.warn("allium tree-sitter parser not installed", "Run :TSInstall allium")
+      health_warn("allium tree-sitter parser not installed", "Run :TSInstall allium")
     end
   else
-    vim.health.error("nvim-treesitter not found", "Install nvim-treesitter for syntax highlighting")
+    health_error("nvim-treesitter not found", "Install nvim-treesitter for syntax highlighting")
   end
 end
 
 function M.check()
-  vim.health.start("allium")
+  health_start("allium")
   check_version()
   check_lsp()
   check_dependencies()
