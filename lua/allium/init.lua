@@ -28,18 +28,18 @@ end
 
 local function setup_lsp_native()
   local lsp_opts = config.options.lsp
-  vim.lsp.config("allium_lsp", {
+  vim.lsp.config("allium", {
     cmd = lsp_opts.cmd,
     filetypes = lsp_opts.filetypes,
     root_markers = lsp_opts.root_markers,
     settings = lsp_opts.settings,
   })
-  vim.lsp.enable("allium_lsp")
+  vim.lsp.enable("allium")
 
   vim.api.nvim_create_autocmd("LspAttach", {
     callback = function(args)
       local client = vim.lsp.get_client_by_id(args.data.client_id)
-      if client and client.name == "allium_lsp" then
+      if client and client.name == "allium" then
         attach_keymaps(args.buf)
       end
     end,
