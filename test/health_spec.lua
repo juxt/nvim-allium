@@ -346,6 +346,144 @@ harness.test("health.check accepts missing nvim-lspconfig on Neovim 0.11+", func
   assert(ok, err)
 end)
 
+harness.test("health.check reports ok when nvim-treesitter is missing but neovim version is sufficient", function()
+  clear_health_modules()
+
+  package.preload["lspconfig"] = function()
+    return {}
+  end
+
+  local original_has = vim.fn.has
+  local original_executable = vim.fn.executable
+  local original_exepath = vim.fn.exepath
+  local original_health = vim.health
+  local records = { start = {}, ok = {}, warn = {}, error = {} }
+
+  vim.fn.has = function(feature)
+    if feature == "nvim-0.9" then
+      return 1
+    end
+    return original_has(feature)
+  end
+  vim.fn.executable = function(cmd)
+    if cmd == "allium-lsp" then
+      return 1
+    end
+    return 0
+  end
+  vim.fn.exepath = function(cmd)
+    if cmd == "allium-lsp" then
+      return "/usr/bin/allium-lsp"
+    end
+    return ""
+  end
+
+  vim.health = {
+    start = function(msg)
+      records.start[#records.start + 1] = msg
+    end,
+    ok = function(msg)
+      records.ok[#records.ok + 1] = msg
+    end,
+    warn = function(msg)
+      records.warn[#records.warn + 1] = msg
+    end,
+    error = function(msg)
+      records.error[#records.error + 1] = msg
+    end,
+  }
+
+  local ok, err = pcall(function()
+    local config = require("allium.config")
+    config.setup({})
+    require("allium.health").check()
+    local found_version_ok = false
+    for _, msg in ipairs(records.ok) do
+      if msg:match("Neovim version >= 0%.9%.0") then
+        found_version_ok = true
+      end
+    end
+    assert(found_version_ok, "expected neovim version ok message")
+
+    local found_ts_error = false
+    for _, msg in ipairs(records.error) do
+      if msg:match("nvim%-treesitter not found") then
+        found_ts_error = true
+      end
+    end
+    assert(found_ts_error, "expected nvim-treesitter missing error even though neovim is sufficient")
+  end)
+
+  vim.health = original_health
+  vim.fn.has = original_has
+  vim.fn.executable = original_executable
+  vim.fn.exepath = original_exepath
+  assert(ok, err)
+end)
+
+harness.test("health.check report has expected section header", function()
+  clear_health_modules()
+
+  package.preload["lspconfig"] = function()
+    return {}
+  end
+  package.preload["nvim-treesitter"] = function()
+    return {}
+  end
+  package.preload["nvim-treesitter.parsers"] = function()
+    return {
+      has_parser = function()
+        return true
+      end,
+    }
+  end
+
+  local original_has = vim.fn.has
+  local original_executable = vim.fn.executable
+  local original_exepath = vim.fn.exepath
+  local original_health = vim.health
+  local records = { start = {} }
+
+  vim.fn.has = function(feature)
+    if feature == "nvim-0.9" then
+      return 1
+    end
+    return original_has(feature)
+  end
+  vim.fn.executable = function()
+    return 1
+  end
+  vim.fn.exepath = function()
+    return "/usr/bin/allium-lsp"
+  end
+
+  vim.health = {
+    start = function(msg)
+      records.start[#records.start + 1] = msg
+    end,
+    ok = function()
+    end,
+    warn = function()
+    end,
+    error = function()
+    end,
+  }
+
+  local ok, err = pcall(function()
+    local config = require("allium.config")
+    config.setup({})
+    require("allium.health").check()
+    assert(#records.start == 1, "expected exactly one section header")
+    assert(records.start[1] == "allium", "expected section header to be 'allium'")
+  end)
+
+  vim.health = original_health
+  vim.fn.has = original_has
+  vim.fn.executable = original_executable
+  vim.fn.exepath = original_exepath
+  assert(ok, err)
+end)
+
 harness.test("health.check reports missing nvim-treesitter dependency", function()
   clear_health_modules()
 

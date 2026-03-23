@@ -84,3 +84,54 @@ harness.test("treesitter.setup returns cleanly when parser config container is i
   assert(ok, err)
   assert(parser_module.allium == nil, "expected no parser config when container is invalid")
 end)
+
+harness.test("treesitter.setup sets branch to master in parser config", function()
+  clear_treesitter_modules()
+  local parser_configs = {}
+  package.preload["nvim-treesitter.parsers"] = function()
+    return {
+      get_parser_configs = function()
+        return parser_configs
+      end,
+    }
+  end
+
+  require("allium.treesitter").setup()
+
+  assert(type(parser_configs.allium) == "table", "expected allium parser config")
+  assert(parser_configs.allium.install_info.branch == "master", "expected branch to be master")
+end)
+
+harness.test("treesitter.setup does not set location field (standalone repo)", function()
+  clear_treesitter_modules()
+  local parser_configs = {}
+  package.preload["nvim-treesitter.parsers"] = function()
+    return {
+      get_parser_configs = function()
+        return parser_configs
+      end,
+    }
+  end
+
+  require("allium.treesitter").setup()
+
+  assert(type(parser_configs.allium) == "table", "expected allium parser config")
+  assert(parser_configs.allium.install_info.location == nil, "expected no location field for standalone repo")
+end)
+
+harness.test("treesitter.setup maps filetype to allium", function()
+  clear_treesitter_modules()
+  local parser_configs = {}
+  package.preload["nvim-treesitter.parsers"] = function()
+    return {
+      get_parser_configs = function()
+        return parser_configs
+      end,
+    }
+  end
+
+  require("allium.treesitter").setup()
+
+  assert(type(parser_configs.allium) == "table", "expected allium parser config")
+  assert(parser_configs.allium.filetype == "allium", "expected filetype mapping to be allium")
+end)

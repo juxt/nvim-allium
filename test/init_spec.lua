@@ -202,6 +202,230 @@ harness.test("setup keeps existing allium lspconfig server definition", function
   assert(ok, err)
 end)
 
+harness.test("setup is idempotent (calling twice does not duplicate keymaps or autocmds)", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  local captured_setup_count = 0
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function()
+          captured_setup_count = captured_setup_count + 1
+        end,
+      },
+    }
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  local treesitter_count = 0
+  require("allium.treesitter").setup = function()
+    treesitter_count = treesitter_count + 1
+  end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    -- Clear loaded allium.init to re-require it fresh for second call
+    package.loaded["allium"] = nil
+    package.loaded["allium.init"] = nil
+
+    require("allium").setup({})
+
+    assert(captured_setup_count == 2, "expected lsp setup called twice (once per setup call)")
+    assert(treesitter_count == 2, "expected treesitter setup called twice")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
+harness.test("setup is idempotent on Neovim 0.11+ (augroup clears on second call)", function()
+  clear_setup_modules()
+
+  local captured_config_count = 0
+  local enable_count = 0
+  local original_lsp_config = vim.lsp.config
+  local original_lsp_enable = vim.lsp.enable
+  local original_autocmd = vim.api.nvim_create_autocmd
+  local original_augroup = vim.api.nvim_create_augroup
+
+  vim.lsp.config = function()
+    captured_config_count = captured_config_count + 1
+  end
+  vim.lsp.enable = function()
+    enable_count = enable_count + 1
+  end
+
+  local augroup_opts_list = {}
+  vim.api.nvim_create_augroup = function(name, opts)
+    augroup_opts_list[#augroup_opts_list + 1] = { name = name, opts = opts }
+    return 1
+  end
+
+  local autocmd_count = 0
+  vim.api.nvim_create_autocmd = function()
+    autocmd_count = autocmd_count + 1
+  end
+
+  local original_treesitter_setup = require("allium.treesitter").setup
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({})
+
+    package.loaded["allium"] = nil
+    package.loaded["allium.init"] = nil
+
+    require("allium").setup({})
+
+    assert(captured_config_count == 2, "expected lsp.config called twice")
+    assert(enable_count == 2, "expected lsp.enable called twice")
+    -- Both calls create augroup with clear = true, so the second call clears the first
+    for _, entry in ipairs(augroup_opts_list) do
+      assert(entry.opts.clear == true, "expected augroup created with clear = true")
+    end
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.lsp.config = original_lsp_config
+  vim.lsp.enable = original_lsp_enable
+  vim.api.nvim_create_autocmd = original_autocmd
+  vim.api.nvim_create_augroup = original_augroup
+  assert(ok, err)
+end)
+
+harness.test("setup with keymaps.enabled = false skips keymap registration entirely", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  local captured_setup_opts
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function(opts)
+          captured_setup_opts = opts
+        end,
+      },
+    }
+  end
+
+  local keymap_calls = 0
+  local original_keymap_set = vim.keymap.set
+  local original_bo = vim.bo
+  local original_treesitter_setup = require("allium.treesitter").setup
+
+  vim.keymap.set = function()
+    keymap_calls = keymap_calls + 1
+  end
+  vim.bo = setmetatable({}, {
+    __index = function()
+      return setmetatable({}, { __newindex = function() end })
+    end,
+  })
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({
+      keymaps = { enabled = false },
+    })
+
+    captured_setup_opts.on_attach({}, 5)
+    assert(keymap_calls == 0, "expected zero keymaps when keymaps.enabled is false")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.keymap.set = original_keymap_set
+  vim.bo = original_bo
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
+harness.test("setup applies custom keymap bindings from config", function()
+  clear_setup_modules()
+
+  local original_lsp_config = vim.lsp.config
+  vim.lsp.config = nil
+
+  local captured_setup_opts
+  package.preload["lspconfig.configs"] = function()
+    return {}
+  end
+
+  package.preload["lspconfig"] = function()
+    return {
+      allium = {
+        setup = function(opts)
+          captured_setup_opts = opts
+        end,
+      },
+    }
+  end
+
+  local keymaps = {}
+  local original_keymap_set = vim.keymap.set
+  local original_bo = vim.bo
+  local original_treesitter_setup = require("allium.treesitter").setup
+
+  vim.keymap.set = function(mode, lhs, rhs, opts)
+    keymaps[#keymaps + 1] = { mode = mode, lhs = lhs, rhs = rhs, opts = opts }
+  end
+  vim.bo = setmetatable({}, {
+    __index = function()
+      return setmetatable({}, { __newindex = function() end })
+    end,
+  })
+  require("allium.treesitter").setup = function() end
+
+  local ok, err = pcall(function()
+    require("allium").setup({
+      keymaps = {
+        definition = "gD",
+        hover = "<leader>h",
+      },
+    })
+
+    captured_setup_opts.on_attach({}, 7)
+
+    local found_gD = false
+    local found_leader_h = false
+    local found_gd = false
+    for _, km in ipairs(keymaps) do
+      if km.lhs == "gD" then
+        found_gD = true
+      end
+      if km.lhs == "<leader>h" then
+        found_leader_h = true
+      end
+      if km.lhs == "gd" then
+        found_gd = true
+      end
+    end
+    assert(found_gD, "expected custom definition keymap gD")
+    assert(found_leader_h, "expected custom hover keymap <leader>h")
+    assert(not found_gd, "expected default gd to be replaced by gD")
+  end)
+
+  require("allium.treesitter").setup = original_treesitter_setup
+  vim.keymap.set = original_keymap_set
+  vim.bo = original_bo
+  vim.lsp.config = original_lsp_config
+  assert(ok, err)
+end)
+
 harness.test("setup skips keymap registration when disabled", function()
   clear_setup_modules()
 
