@@ -944,3 +944,73 @@ harness.test("health.check warns when parser is unavailable", function()
   vim.fn.executable = original_executable
   assert(ok, err)
 end)
+
+harness.test("health.check works without setup() being called (lazy-load scenario)", function()
+  clear_health_modules()
+  package.loaded["allium.config"] = nil
+
+  package.preload["lspconfig"] = function()
+    return {}
+  end
+  package.preload["nvim-treesitter"] = function()
+    return {}
+  end
+  package.preload["nvim-treesitter.parsers"] = function()
+    return {
+      has_parser = function()
+        return true
+      end,
+    }
+  end
+
+  local original_has = vim.fn.has
+  local original_executable = vim.fn.executable
+  local original_exepath = vim.fn.exepath
+  local original_health = vim.health
+  local records = { start = {}, ok = {}, warn = {}, error = {} }
+
+  vim.fn.has = function(feature)
+    if feature == "nvim-0.9" then
+      return 1
+    end
+    return original_has(feature)
+  end
+  vim.fn.executable = function(cmd)
+    if cmd == "allium-lsp" then
+      return 1
+    end
+    return 0
+  end
+  vim.fn.exepath = function(cmd)
+    if cmd == "allium-lsp" then
+      return "/usr/bin/allium-lsp"
+    end
+    return ""
+  end
+  vim.health = {
+    start = function(msg)
+      records.start[#records.start + 1] = msg
+    end,
+    ok = function(msg)
+      records.ok[#records.ok + 1] = msg
+    end,
+    warn = function(msg)
+      records.warn[#records.warn + 1] = msg
+    end,
+    error = function(msg)
+      records.error[#records.error + 1] = msg
+    end,
+  }
+
+  local ok, err = pcall(function()
+    require("allium.health").check()
+    assert(records.start[1] == "allium", "expected allium health section")
+    assert(#records.ok >= 1, "expected at least one ok result")
+  end)
+
+  vim.health = original_health
+  vim.fn.has = original_has
+  vim.fn.executable = original_executable
+  vim.fn.exepath = original_exepath
+  assert(ok, err)
+end)

@@ -6,9 +6,17 @@ local health_ok = vim.health.ok or vim.health.report_ok
 local health_warn = vim.health.warn or vim.health.report_warn
 local health_error = vim.health.error or vim.health.report_error
 
-local function check_lsp()
+local function get_options()
   local config = require("allium.config")
-  local lsp_cmd = config.options.lsp and config.options.lsp.cmd and config.options.lsp.cmd[1] or "allium-lsp"
+  if next(config.options) ~= nil then
+    return config.options
+  end
+  return config.defaults
+end
+
+local function check_lsp()
+  local opts = get_options()
+  local lsp_cmd = opts.lsp.cmd[1]
   if vim.fn.executable(lsp_cmd) == 1 then
     health_ok(string.format("allium-lsp found at %s", vim.fn.exepath(lsp_cmd)))
   else

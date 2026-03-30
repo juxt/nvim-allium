@@ -14,7 +14,7 @@ No plugin manager needed for LSP and filetype support. The plugin adds tree-sitt
 -- lazy.nvim
 {
   "juxt/nvim-allium",
-  ft = { "allium" },
+  event = "VeryLazy",
   opts = {},
   dependencies = {
     "nvim-treesitter/nvim-treesitter",
@@ -30,7 +30,7 @@ On 0.11+, `nvim-lspconfig` is not required. The plugin uses `vim.lsp.config()` a
 -- lazy.nvim
 {
   "juxt/nvim-allium",
-  ft = { "allium" },
+  event = "VeryLazy",
   opts = {},
   dependencies = {
     "neovim/nvim-lspconfig",
